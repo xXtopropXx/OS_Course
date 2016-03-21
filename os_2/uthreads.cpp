@@ -283,7 +283,6 @@ int uthread_get_quantums(int tid)
 void switchThreads() {
     //stop timer
     //block signals??
-
     //unblock signals??
     //begin timer
     return;
