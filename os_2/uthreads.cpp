@@ -22,6 +22,7 @@ int uthread_init(int quantum_usecs)
     Thread main = Thread(MAIN_THREAD_ID);
     tl.addThread(main);
     tl.updateRunning();
+    tl.updateRunning();
 }
 
 /*
