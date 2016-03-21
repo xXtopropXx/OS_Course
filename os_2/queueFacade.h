@@ -17,6 +17,8 @@ public:
     int pop(){int value = _q[0]; _q.erase(_q.begin()); return value;} // Pop
     int find(int value); // Finds the pos of the value in the que, -1 if not found
     void erase(int pos){_q.erase(_q.begin() + pos);}// deletes a value from the queue
+    vector<int>::iterator begin(){return _q.begin();}
+    vector<int>::iterator end(){return _q.end();}
 private:
     vector<int> _q;
 };

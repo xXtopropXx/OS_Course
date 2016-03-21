@@ -1,8 +1,6 @@
 #include "uthreads.h"
 #include "threads_library.h"
 
-
-
 using namespace std;
 
 
@@ -18,10 +16,36 @@ static ThreadsLibrary tl;
 */
 int uthread_init(int quantum_usecs)
 {
+    struct sigaction timeHandler;
+    struct itimerval timer;
+
     tl = ThreadsLibrary(quantum_usecs);
     Thread main = Thread(MAIN_THREAD_ID);
     tl.addThread(main);
     tl.updateRunning();
+    try {
+
+        timer.it_value.tv_sec = tl.getQuantumTime() / MICROSEC_IN_SEC;
+        timer.it_value.tv_usec = tl.getQuantumTime() % MICROSEC_IN_SEC;
+        timer.it_interval.tv_sec = tl.getQuantumTime() / MICROSEC_IN_SEC;
+        timer.it_interval.tv_usec = tl.getQuantumTime() % MICROSEC_IN_SEC;
+
+
+        timeHandler.sa_handler = &catch_timer;
+
+        if (sigaction(SIGVTALRM, &timeHandler, NULL) == FAIL) {
+            throw sigActionException();
+        }
+
+        if (setitimer (ITIMER_VIRTUAL, &timer, NULL) == FAIL) {
+            throw setItimerException();
+        }
+        tl.useQuantum();
+    } catch(exception& e) {
+        cerr << SYS_CALL_ERROR_PROLOG << e.what() << endl;
+        exit(EXIT_FAILURE);
+    }
+    return SUCCESS;
 }
 
 /*
@@ -177,14 +201,16 @@ int uthread_resume(int tid)
 */
 int uthread_sleep(int num_quantums)
 {
-    if(num_quantums <= 0 ||
-       tl.getRunningThread()->getID() == MAIN_THREAD_ID) {
-        cerr << LIB_FUNCTION_ERROR_PROLOG << SLEEP_MAIN_ERROR << endl;
-        return FAIL; // TODO seperate ifs
+    if(num_quantums <= 0) {
+        cerr << LIB_FUNCTION_ERROR_PROLOG << SLEEP_INVALID_ARGUMENT << endl;
+        return FAIL;
+    }
+    else if( tl.getRunningThread()->getID() == MAIN_THREAD_ID) {
+        cerr << LIB_FUNCTION_ERROR_PROLOG << SLEEP_MAIN_ERROR
     }
     Thread* toSleep = tl.getRunningThread();
     toSleep->sleep(num_quantums);
-    tl.setRunningThread(tl.getThreadAt(tl.getReadyList().pop())); //TODO change
+    tl.setRunningThread(tl.getThreadAt(tl.getReadyList().pop()));
 }
 
 
@@ -252,4 +278,17 @@ int uthread_get_quantums(int tid)
     }
     return toTell.getQuantamsUsed();
 
+}
+
+void switchThreads() {
+    //stop timer
+    //block signals??
+
+    //unblock signals??
+    //begin timer
+    return;
+}
+
+void catch_timer(int sig) {
+    switchThreads();
 }
