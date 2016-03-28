@@ -16,7 +16,10 @@ public:
     void push(int n) {_q.push_back(n);} // good, old, normal push
     int pop(){int value = _q[0]; _q.erase(_q.begin()); return value;} // Pop
     int find(int value); // Finds the pos of the value in the que, -1 if not found
-    void erase(int pos){_q.erase(_q.begin() + pos);}// deletes a value from the queue
+    vector<int>::iterator erase(int pos){return _q.erase(_q.begin() + pos);}// deletes a value from the queue
+    vector<int>::iterator begin(){return _q.begin();}
+    vector<int>::iterator end(){return _q.end();}
+    size_t size(){return _q.size();}
 private:
     vector<int> _q;
 };
@@ -26,7 +29,7 @@ private:
  * returns -1 if not found and the position otherwise.
  */
 int myQueue::find(int value) {
-    for(int i = 0; i < _q.size(); i++)
+    for(unsigned int i = 0; i < _q.size(); i++)
         if(_q[i] == value)
             return i;
     return -1;
