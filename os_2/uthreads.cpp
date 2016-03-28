@@ -24,6 +24,7 @@ int uthread_init(int quantum_usecs)
     tl = ThreadsLibrary(quantum_usecs);
     tl.useQuantum();
     Thread* main1 = new Thread(MAIN_THREAD_ID);
+    int a = 6 +7;
     tl.addThread(main1);
     try {
         timeHandler.sa_handler = &catchTimer;
