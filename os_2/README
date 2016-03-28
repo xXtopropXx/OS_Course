@@ -1,0 +1,30 @@
+odh1234321, mizroy96
+Ofir Hershko (207330549), Roy Mizrachi (316148188)
+EX: 2
+
+FILES:
+README -- The file you are reading now!
+Makefile -- makefile for the threads library.
+uthreads.cpp -- Contains the implementation of the given file
+		uthreads.h. Used as a external library to manage user-level threads.
+threads.h -- Contatins class representation for a single thread.
+threads_library.h -- Contains the class which manage the threads.
+queueFacade.h -- Facade for a simple queue for ints.
+lib_exceptions.h -- Contains exception used by the threads library.
+
+
+REMARKS:
+
+ANSWERS:
+
+Q1:
+
+
+Q2:
+
+
+Q3:
+
+
+Q4:
+
