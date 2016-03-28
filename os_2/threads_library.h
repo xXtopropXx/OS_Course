@@ -31,26 +31,27 @@
 #define MICROSEC_IN_SEC 1000000
 
 using namespace std;
-
+extern void catchTimer(int sig);
 class ThreadsLibrary
 {
 public:
+    inline ~ThreadsLibrary();
     inline ThreadsLibrary(): quantumDuration(-1){} // Default C-tor
     inline ThreadsLibrary(int quantum_time);
     inline const int getQuantumTime() const {return this->quantumDuration;}
-    inline myQueue getReadyList() const {return this->ready;}
-    inline myQueue getSleepingList() const {return this->sleeping;}
-    inline myQueue getBlockedList() const {return this->blocked;}
+    inline myQueue& getReadyList() {return this->ready;}
+    inline myQueue& getSleepingList() {return this->sleeping;}
+    inline myQueue& getBlockedList() {return this->blocked;}
     inline Thread* getRunningThread() const {return this->running;}
-    inline void addThread(Thread t);
+    void updateSleeping();
+    inline void addThread(Thread* t);
     inline int getNextID() const;
-    inline void updateRunning();
-    inline Thread& getThreadAt(int tid);
+    inline Thread* getThreadAt(int tid);
     inline int getTotalQuantums(){return this->totalQuantumsUsed;}
-    void setRunningThread(Thread &thread);
+    void setRunningThread(Thread* thread);
     void useQuantum(){totalQuantumsUsed++;}
-    itimerval* getStoppedTimer(){return &emptyTimer;}
-    itimerval* getRealTimer(){return &quantumTimer;}
+    inline struct itimerval* getTimer(){return &timer;}
+    const sigset_t *getBlockedSignals(){return &blockedSignals;}
 
 private:
     int totalQuantumsUsed;
@@ -59,13 +60,9 @@ private:
     myQueue sleeping;
     myQueue blocked;
     Thread* running;
-    Thread threads[MAX_THREAD_NUM] = {};
-    struct itimerval emptyTimer = {{0}};
-    struct itimerval quantumTimer = {{0}};
-
-
-
-    void updateSleeping();
+    Thread* (threads[MAX_THREAD_NUM]) = {};
+    struct itimerval timer;
+    sigset_t blockedSignals;
 };
 
 /**
@@ -73,7 +70,7 @@ private:
  */
 inline int ThreadsLibrary::getNextID() const {
     for(int i = 0; i < MAX_THREAD_NUM; i++) {
-        if(threads[i].isVoid())
+        if(threads[i] == nullptr)
             return i;
     }
     throw threadsLimitException();
@@ -83,32 +80,26 @@ inline int ThreadsLibrary::getNextID() const {
  * gets thread to add to the threads list, appends it to the ready threads
  * queue.
  */
-inline void ThreadsLibrary::addThread(Thread t) {
-    threads[t.getID()] = t;
-    ready.push(t.getID());
-}
-
-/**
- * Makes the thread with the tid parameter id as the running thread. Moves the
- * current running thread to the back of the ready threads queue
- */
-inline void ThreadsLibrary::updateRunning() {
-    if(running != nullptr) {
-        ready.push(running->getID());
-        running->setAsReady();
+inline void ThreadsLibrary::addThread(Thread* t) {
+    threads[t->getID()] = t;
+    if(running == nullptr) {
+        running = threads[t->getID()];
+        running->useQuantum();
     }
-    running = &this->getThreadAt(ready.pop());
-    running->run();
+    else {
+        ready.push(t->getID());
+    }
+
 }
 
 /**
  * Gets the Thread with the respective id.
  */
-inline Thread& ThreadsLibrary::getThreadAt(int tid)
+inline Thread* ThreadsLibrary::getThreadAt(int tid)
 {
     if (tid < MIN_ID || tid >= MAX_THREAD_NUM)
         throw out_of_range("Input is out of bound");
-    else if(threads[tid].isVoid())
+    else if(threads[tid] == nullptr)
         throw noSuchThreadException();
     else
         return threads[tid];
@@ -116,27 +107,36 @@ inline Thread& ThreadsLibrary::getThreadAt(int tid)
 #endif //OS_THREADS_LIBRARY_H
 
 
-void ThreadsLibrary::setRunningThread(Thread &thread) {
-    running = &thread;
+void ThreadsLibrary::setRunningThread(Thread* thread) {
+    running = thread;
 }
 
 
 
 void ThreadsLibrary::updateSleeping() {
     for(auto it = sleeping.begin(); it != sleeping.end(); it++) {
-        Thread t = getThreadAt(*it);
-        t.reduceQuantumsTillWakeUp();
-        if(t.shouldWake()) {
-            sleeping.erase(sleeping.find(t.getID()));
-            ready.push(t.getID());
+        Thread* t = getThreadAt(*it);
+        t->reduceQuantumsTillWakeUp();
+        if(t->shouldWake()) {
+            sleeping.erase(sleeping.find(t->getID()));
+            ready.push(t->getID());
         }
     }
 }
 
 inline ThreadsLibrary::ThreadsLibrary(int quantum_time) {
     quantumDuration = quantum_time;
-    quantumTimer.it_value.tv_sec = quantum_time / MICROSEC_IN_SEC;
-    quantumTimer.it_value.tv_usec = quantum_time % MICROSEC_IN_SEC;
-    quantumTimer.it_interval.tv_sec = quantum_time / MICROSEC_IN_SEC;
-    quantumTimer.it_interval.tv_usec = quantum_time % MICROSEC_IN_SEC;
+    timer.it_value.tv_sec = quantum_time / MICROSEC_IN_SEC;
+    timer.it_value.tv_usec = quantum_time % MICROSEC_IN_SEC;
+    timer.it_interval.tv_sec = quantum_time / MICROSEC_IN_SEC;
+    timer.it_interval.tv_usec = quantum_time % MICROSEC_IN_SEC;
+
+    sigemptyset(&blockedSignals);
+    sigaddset(&blockedSignals, SIGVTALRM);
+}
+
+inline ThreadsLibrary::~ThreadsLibrary() {
+    for(int i = 0; i < MAX_THREAD_NUM; i++)
+        if(threads[i] != nullptr)
+            delete threads[i];
 }
