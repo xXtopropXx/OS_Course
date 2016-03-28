@@ -57,87 +57,29 @@ class Thread
 {
 
 public:
-    /* Default C-tor for Thread */
-    inline Thread():Thread(NOT_CREATED_ID){ std:: cout << "C-tor" << std::endl;}
-    /* ID C-tor for Thread */
-    inline Thread(int id):Thread(id, nullptr){}
-    /* ID and entry point C-tor for Thread */
-    inline Thread(int id, void (*f)(void));
-    /* Checks whether the thread is an empty thread */
-    inline bool isVoid() const {return id == NOT_CREATED_ID;}
+    inline Thread(int id):id(id),quantumsUsed(0),quantumsTillWakeUp(0){}
     /* ID getter */
     inline int getID() const {return id;}
     /* Gets the number of quantums the thread allready ran */
-    inline int getQuantamsUsed() const {return quantumsUsed;}
+    inline int getQuantamsUsed() {return quantumsUsed;}
     /* Gets the number of quantums the thread is left before waking up, 0 if
      * isn't at sleep mode
      */
     inline int getQuantimsTillWakeUp() const {return quantumsTillWakeUp;}
     /* Checks whether the thread should be awake*/
-    inline bool shouldWake() const{return !isVoid() && quantumsTillWakeUp <= 0;}
+    inline bool shouldWake() { return quantumsTillWakeUp <= 0;}
     /* reduces number of quantums till waking up */
-    inline void reduceQuantumsTillWakeUp(){if(!isVoid()){quantumsTillWakeUp--;}}
-    /* Terminates the thread */
-    inline void terminate();
+    inline void reduceQuantumsTillWakeUp(){quantumsTillWakeUp--;}
     /* Makes the thread sleep for input number of quantums */
     inline void sleep(int q){quantumsTillWakeUp = q;}
-    Thread& operator=(const Thread& other);
     inline void useQuantum() {quantumsUsed++;}
     sigjmp_buf env;
-
-private:
-
-    int id;
     char stack[STACK_SIZE] = {'\0'};
-
+private:
+    int id;
     int quantumsUsed;
     int quantumsTillWakeUp;
-
-
 };
-
-/**
- * operator == overload between two threads.
- */
-inline bool operator==(const Thread& lhs, const Thread& rhs) {
-    return rhs.getID() == lhs.getID();
-}
-
-/** Terminates the thread */
-inline void Thread::terminate() {
-    id = NOT_CREATED_ID;
-    for(int i = 0; i < STACK_SIZE; i++)
-        stack[i] = '\0';
-    env->__jmpbuf[JB_SP] = translate_address((address_t) 0);
-    env->__jmpbuf[JB_PC] = translate_address((address_t) 0);
-    quantumsUsed = 0;
-    quantumsTillWakeUp = 0;
-
-}
-
-/**
- * Assignment operator for Thread class
- */
-Thread& Thread::operator=(const Thread& other) {
-    id = other.id;
-    env->__jmpbuf[JB_PC] = other.env->__jmpbuf[JB_PC];
-    env->__jmpbuf[JB_SP] = other.env->__jmpbuf[JB_SP];
-    quantumsUsed = other.quantumsUsed;
-    quantumsTillWakeUp = other.quantumsTillWakeUp;
-    return *this;
-}
-
-Thread::Thread(int id, void (*f)()) {
-    this->id = id;
-
-    sigsetjmp(env, 1);
-    env->__jmpbuf[JB_SP] = translate_address(
-            (address_t) stack + STACK_SIZE - sizeof(address_t));
-    env->__jmpbuf[JB_PC] = translate_address((address_t)f);
-    sigemptyset(&(env->__saved_mask));
-    quantumsUsed = 0;
-    quantumsTillWakeUp = 0;
-}
 #endif //OS_THREAD_H
 
 

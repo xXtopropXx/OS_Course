@@ -23,8 +23,11 @@ int uthread_init(int quantum_usecs)
 
     tl = ThreadsLibrary(quantum_usecs);
     tl.useQuantum();
-    Thread* main1 = new Thread(MAIN_THREAD_ID);
-    int a = 6 +7;
+    Thread main1 = Thread(MAIN_THREAD_ID);
+    if(sigsetjmp(main1.env, 1) == 1)
+    {
+        return SUCCESS;
+    }
     tl.addThread(main1);
     try {
         timeHandler.sa_handler = &catchTimer;
@@ -64,7 +67,15 @@ int uthread_spawn(void (*f)(void))
         cerr << LIB_FUNCTION_ERROR_PROLOG <<  e.what() << endl;
         return FAIL;
     }
-    tl.addThread(new Thread(tID, f));
+    tl.addThread(Thread(tID));
+    Thread *nct = tl.getThreadAt(tID);
+    if(sigsetjmp(nct->env,1) == 1)
+        return tID;
+    nct->env->__jmpbuf[JB_SP] = translate_address(
+            (address_t) nct->stack + STACK_SIZE - sizeof(address_t));
+    nct->env->__jmpbuf[JB_PC] = translate_address((address_t) f);
+    sigemptyset(&(nct->env->__saved_mask));
+
     sigprocmask(SIG_UNBLOCK, tl.getBlockedSignals(), NULL);
     return tID;
 }
@@ -93,7 +104,7 @@ int uthread_terminate(int tid)
     }
     if(tid == MAIN_THREAD_ID)
         exit(EXIT_SUCCESS);
-    myQueue list;
+    myQueue* list;
     //search for the id in the lists and delete from them if found
 
     if(tl.getRunningThread()->getID() == tid) {
@@ -101,11 +112,12 @@ int uthread_terminate(int tid)
         switchThreads(TERMINATED);
         return SUCCESS;
     }
-    else if((list = tl.getReadyList()).find(tid) != -1) {}
-    else if((list = tl.getSleepingList()).find(tid) != -1){}
-    else if((list = tl.getBlockedList()).find(tid) != -1){}
-    list.erase(list.find(tid));
-    tl.getThreadAt(tid)->terminate();
+    else if((list = &tl.getReadyList())->find(tid) != -1) {}
+    else if((list = &tl.getSleepingList())->find(tid) != -1){}
+    else if((list = &tl.getBlockedList())->find(tid) != -1){}
+    list->erase(list->find(tid));
+    delete tl.getThreadAt(tid);
+    tl.threads[tid] = nullptr;
     sigprocmask(SIG_UNBLOCK, tl.getBlockedSignals(), NULL);
     return SUCCESS;
 
@@ -123,27 +135,32 @@ int uthread_terminate(int tid)
 */
 int uthread_block(int tid)
 {
+    sigprocmask(SIG_BLOCK, tl.getBlockedSignals(), NULL);
     try {
         tl.getThreadAt(tid);
     } catch(const exception &e) {
             cerr << LIB_FUNCTION_ERROR_PROLOG <<  e.what() << endl;
+            sigprocmask(SIG_UNBLOCK, tl.getBlockedSignals(), NULL);
             return FAIL;
     }
 
     if(tid == MAIN_THREAD_ID) {
         cerr << LIB_FUNCTION_ERROR_PROLOG <<  BLOCK_MAIN_ERROR << endl;
+        sigprocmask(SIG_UNBLOCK, tl.getBlockedSignals(), NULL);
         return FAIL;
     }
-    myQueue list;
+    myQueue* list;
     if(tl.getRunningThread()->getID() == tid) {
         switchThreads(BLOCKED);
+        sigprocmask(SIG_UNBLOCK, tl.getBlockedSignals(), NULL);
         return SUCCESS;
     }
-    else if((list = tl.getReadyList()).find(tid) != -1) {}
-    else if((list = tl.getSleepingList()).find(tid) != -1){}
-    else if((list = tl.getBlockedList()).find(tid) != -1){}
-    list.erase(list.find(tid));
+    else if((list = &tl.getReadyList())->find(tid) != -1) {}
+    else if((list = &tl.getSleepingList())->find(tid) != -1){}
+    else if((list = &tl.getBlockedList())->find(tid) != -1){}
+    list->erase(list->find(tid));
     tl.getBlockedList().push(tid);
+    sigprocmask(SIG_UNBLOCK, tl.getBlockedSignals(), NULL);
     return SUCCESS;
 }
 
@@ -163,9 +180,9 @@ int uthread_resume(int tid)
         cerr << LIB_FUNCTION_ERROR_PROLOG <<  e.what() << endl;
         return FAIL;
     }
-    myQueue list;
-    if((list = tl.getBlockedList()).find(tid) != -1) {
-        list.erase(list.find(tid));
+    myQueue* list;
+    if((list = &tl.getBlockedList())->find(tid) != -1) {
+        list->erase(list->find(tid));
         tl.getReadyList().push(tid);
     }
     return SUCCESS;
@@ -251,6 +268,7 @@ int uthread_get_total_quantums()
 */
 int uthread_get_quantums(int tid)
 {
+    sigprocmask(SIG_BLOCK, tl.getBlockedSignals(), NULL);
     Thread* toTell;
     try {
         toTell = tl.getThreadAt(tid);
@@ -258,8 +276,8 @@ int uthread_get_quantums(int tid)
         cerr << LIB_FUNCTION_ERROR_PROLOG <<  e.what() << endl;
         return FAIL;
     }
+    sigprocmask(SIG_UNBLOCK, tl.getBlockedSignals(), NULL);
     return toTell->getQuantamsUsed();
-
 }
 
 void switchThreads(NewState s = READY) {
@@ -267,8 +285,6 @@ void switchThreads(NewState s = READY) {
     tl.updateSleeping();
 
     Thread *oct = tl.getRunningThread();
-    if(oct == nullptr || oct == NULL)
-        cout << "oct is null" << endl;
     int rtnValue = sigsetjmp(oct->env,1);
     if(rtnValue) {
         return;
@@ -280,18 +296,16 @@ void switchThreads(NewState s = READY) {
             tl.getReadyList().push(oct->getID());
             break;
         case SLEEP:
-            cout << "SLEEP" << endl;
             tl.getSleepingList().push(oct->getID());
+            break;
         case TERMINATED:
-            cout << "TERMINATED" << endl;
-            oct->terminate();
+            tl.threads[oct->getID()] = nullptr;
+            delete oct;
             break;
         case BLOCKED:
-            cout << "BLOCKED" << endl;
             tl.getBlockedList().push(oct->getID());
             break;
         default:
-            cout << "DEFAULT" << endl;
             break;
 
     }
@@ -301,6 +315,7 @@ void switchThreads(NewState s = READY) {
 }
 
 void catchTimer(int sig) {
+    (void) sig; //avoiding warnning
     try {
         switchThreads();
     } catch(exception& e) {

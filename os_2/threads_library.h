@@ -38,13 +38,13 @@ public:
     inline ~ThreadsLibrary();
     inline ThreadsLibrary(): quantumDuration(-1){} // Default C-tor
     inline ThreadsLibrary(int quantum_time);
-    inline const int getQuantumTime() const {return this->quantumDuration;}
+    inline int getQuantumTime() const{return this->quantumDuration;}
     inline myQueue& getReadyList() {return this->ready;}
     inline myQueue& getSleepingList() {return this->sleeping;}
     inline myQueue& getBlockedList() {return this->blocked;}
     inline Thread* getRunningThread() const {return this->running;}
     void updateSleeping();
-    inline void addThread(Thread* t);
+    inline void addThread(Thread t);
     inline int getNextID() const;
     inline Thread* getThreadAt(int tid);
     inline int getTotalQuantums(){return this->totalQuantumsUsed;}
@@ -52,6 +52,7 @@ public:
     void useQuantum(){totalQuantumsUsed++;}
     inline struct itimerval* getTimer(){return &timer;}
     const sigset_t *getBlockedSignals(){return &blockedSignals;}
+    Thread* (threads[MAX_THREAD_NUM]) = {};
 
 private:
     int totalQuantumsUsed;
@@ -60,7 +61,7 @@ private:
     myQueue sleeping;
     myQueue blocked;
     Thread* running;
-    Thread* (threads[MAX_THREAD_NUM]) = {};
+
     struct itimerval timer;
     sigset_t blockedSignals;
 };
@@ -80,14 +81,14 @@ inline int ThreadsLibrary::getNextID() const {
  * gets thread to add to the threads list, appends it to the ready threads
  * queue.
  */
-inline void ThreadsLibrary::addThread(Thread* t) {
-    threads[t->getID()] = t;
+inline void ThreadsLibrary::addThread(Thread t) {
+    threads[t.getID()] = new Thread(t);
     if(running == nullptr) {
-        running = threads[t->getID()];
+        running = threads[t.getID()];
         running->useQuantum();
     }
     else {
-        ready.push(t->getID());
+        ready.push(t.getID());
     }
 
 }
@@ -99,12 +100,12 @@ inline Thread* ThreadsLibrary::getThreadAt(int tid)
 {
     if (tid < MIN_ID || tid >= MAX_THREAD_NUM)
         throw out_of_range("Input is out of bound");
-    else if(threads[tid] == nullptr)
+    else if(threads[tid] == nullptr) {
         throw noSuchThreadException();
+    }
     else
         return threads[tid];
 }
-#endif //OS_THREADS_LIBRARY_H
 
 
 void ThreadsLibrary::setRunningThread(Thread* thread) {
@@ -114,13 +115,18 @@ void ThreadsLibrary::setRunningThread(Thread* thread) {
 
 
 void ThreadsLibrary::updateSleeping() {
+    myQueue toErase;
     for(auto it = sleeping.begin(); it != sleeping.end(); it++) {
         Thread* t = getThreadAt(*it);
         t->reduceQuantumsTillWakeUp();
         if(t->shouldWake()) {
-            sleeping.erase(sleeping.find(t->getID()));
-            ready.push(t->getID());
+            toErase.push(t->getID());
         }
+    }
+    while(toErase.size()) {
+        int id = toErase.pop();
+        ready.push(id);
+        sleeping.erase(sleeping.find(id));
     }
 }
 
@@ -140,3 +146,5 @@ inline ThreadsLibrary::~ThreadsLibrary() {
         if(threads[i] != nullptr)
             delete threads[i];
 }
+
+#endif //OS_THREADS_LIBRARY_H_

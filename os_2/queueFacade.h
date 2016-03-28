@@ -19,6 +19,7 @@ public:
     vector<int>::iterator erase(int pos){return _q.erase(_q.begin() + pos);}// deletes a value from the queue
     vector<int>::iterator begin(){return _q.begin();}
     vector<int>::iterator end(){return _q.end();}
+    size_t size(){return _q.size();}
 private:
     vector<int> _q;
 };
