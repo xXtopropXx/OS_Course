@@ -239,7 +239,6 @@ int uthread_get_time_until_wakeup(int tid)
 {
     try {
         return tl.getThreadAt(tid)->getQuantimsTillWakeUp();
-        // TODO need to make sure contains this quantumDuration too
     } catch(exception& e) {
         cerr << LIB_FUNCTION_ERROR_PROLOG << e.what() << endl;
         return FAIL;
