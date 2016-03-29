@@ -7,9 +7,9 @@ README -- The file you are reading now!
 Makefile -- makefile for the threads library.
 uthreads.cpp -- Contains the implementation of the given file
 		uthreads.h. Used as a external library to manage user-level threads.
-threads.h -- Contatins class representation for a single thread.
+threads.h -- Contains class representation for a single thread.
 threads_library.h -- Contains the class which manage the threads.
-queueFacade.h -- Facade for a simple queue for ints.
+queueFacade.h -- Facade for a simple queue for integers.
 lib_exceptions.h -- Contains exception used by the threads library.
 
 
@@ -19,12 +19,12 @@ ANSWERS:
 
 Q1:
 	No, by opening each tab in a new thread and not in a new process we would
-	lose the advantage of seperating the tabs. If one of the tabs will crush
-	(which happans quite often as we know) It will take down all the other
+	lose the advantage of separating the tabs. If one of the tabs will crush
+	(which happens quite often as we know) It will take down all the other
 	threads with it. 
 	The real advantage of creating a new process and not a new kernel level
 	thread is that each process is protected and independent from other
-	tabs (processes). The main disadvatage of this layout is the high overhead
+	tabs (processes). The main disadvantage of this layout is the high overhead
 	of switching between processes.
 
 
@@ -33,25 +33,27 @@ Q2:
 	button. secondly the os parse the command its given and execute it
 	with the execve(...) command. After which the new program raise a signal
 	which is directed to the process related to the program we want to close,
-	the reciving process recives a signal SIGTERM and terminate itself.
+	the receiving process receives a signal SIGTERM and terminate itself.
 
 Q3:
 	The main difference between real time and virtual time is that the virtual
 	time doesn't count while the process isn't running. (if its blocked, waiting
-	sleeping and so on) the real timer count even when the program is not actually
-	running. 
-	In a real time system we would like to relate things to actual time (like giving
-	voltage for a certain time) and to time related to the program itself to keep
-	the frequency stable.
-	In this exercise we used virtual timer to give each thread a quanta to ran. if
-	we used a real timer, using the thread library while there are other heavy 
-	process running, can result in quantums loss without realising it. (A whole
-	quanta will be spent while the process isn't even running, or parts of it)
+	sleeping and so on) the real timer count even when the program is not 
+	actually running. 
+	In a real time system we would like to relate things to actual time (like
+	giving voltage for a certain time) and to time related to the program itself
+	to keep the frequency stable.
+	In this exercise we used virtual timer to give each thread a quanta to ran.
+	If we used a real timer, using the thread library while there are other 
+	heavy process running, can result in quantums loss without realising it. 
+	(A whole quanta will be spent while the process isn't even running, or parts
+	of it)
 
 Q4:
-	a.usually the child process has a copy of the entire memory that the father process
-	had while the fork comand executed. but when the child process writes to the memory
-	a copy-on-write mechenisam is implemented which means none of these are shared,
-	but rather copied.
-	b. a pipe is a ipc method. it it is needed to transfer data between processes.
+	a.usually the child process has a copy of the entire memory that the father 
+	process had while the fork command executed. but when the child process 
+	writes to the memory a copy-on-write mechanism is implemented which means
+	none of these are shared, but rather copied.
+	b. a pipe is a ipc method. it it is needed to transfer data between 
+	processes.
 	
