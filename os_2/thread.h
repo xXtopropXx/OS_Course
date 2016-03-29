@@ -1,6 +1,3 @@
-//
-// Created by ofir on 20/03/16.
-//
 
 #ifndef OS_THREAD_H
 #define OS_THREAD_H
@@ -62,7 +59,8 @@ public:
     inline int getID() const {return id;}
     /* Gets the number of quantums the thread allready ran */
     inline int getQuantamsUsed() {return quantumsUsed;}
-    /* Gets the number of quantums the thread is left before waking up, 0 if
+    /*
+     * Gets the number of quantums the thread is left before waking up, 0 if
      * isn't at sleep mode
      */
     inline int getQuantimsTillWakeUp() const {return quantumsTillWakeUp;}
@@ -72,13 +70,13 @@ public:
     inline void reduceQuantumsTillWakeUp(){quantumsTillWakeUp--;}
     /* Makes the thread sleep for input number of quantums */
     inline void sleep(int q){quantumsTillWakeUp = q;}
-    inline void useQuantum() {quantumsUsed++;}
-    sigjmp_buf env;
+    inline void useQuantum() {quantumsUsed++;} //add one to the quantum counter
+    sigjmp_buf env; //the thread environment
     char stack[STACK_SIZE] = {'\0'};
 private:
-    int id;
-    int quantumsUsed;
-    int quantumsTillWakeUp;
+    int id; //thread ID
+    int quantumsUsed; //number of quantums the thread used
+    int quantumsTillWakeUp; //number of quantums remains till wake up
 };
 #endif //OS_THREAD_H
 

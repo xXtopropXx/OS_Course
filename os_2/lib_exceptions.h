@@ -1,6 +1,3 @@
-//
-// Created by ofir on 21/03/16.
-//
 
 #ifndef OS_LIB_EXCEPTIONS_H
 #define OS_LIB_EXCEPTIONS_H
@@ -10,6 +7,7 @@
 #define VOID_THREAD_OPERATION_LOG "Tried to operate on a void thread"
 #define SIG_ACTION_ERROR "Error in handling signals"
 #define SET_ITIMER_ERROR "Setting time failed"
+#define DOUBLE_INIT_ERROR "Process already initialize"
 
 using namespace std;
 /**
@@ -29,7 +27,7 @@ public:
 };
 
 /**
- *
+ * Class for signal handling error.
  */
 class sigActionException: public exception {
 public:
@@ -37,11 +35,20 @@ public:
 };
 
 /**
- *
+ * Class for set time error.
  */
 class setItimerException: public exception {
 public:
     const char* what() const noexcept{ return SET_ITIMER_ERROR;}
+};
+
+
+/**
+ * Class for set time error.
+ */
+class doubleInitException: public exception {
+public:
+    const char* what() const noexcept{ return DOUBLE_INIT_ERROR;}
 };
 
 #endif //OS_LIB_EXCEPTIONS_H

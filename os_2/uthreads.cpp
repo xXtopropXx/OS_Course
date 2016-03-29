@@ -1,14 +1,16 @@
+
 #include "uthreads.h"
 #include "threads_library.h"
 
 using namespace std;
 
-
 static ThreadsLibrary tl;
 void catchTimer(int);
 
+/* the new state a thread can go to when switching threads */
 enum NewState {READY, BLOCKED, SLEEP, TERMINATED};
-void switchThreads(NewState s);
+
+static void switchThreads(NewState s); //
 /*
  * Description: This function initializes the thread library.
  * You may assume that this function is called before any other thread library
@@ -19,16 +21,25 @@ void switchThreads(NewState s);
 */
 int uthread_init(int quantum_usecs)
 {
-    struct sigaction timeHandler;
+    try{
+        if(tl.threads[0] != nullptr)
+        {
+            throw doubleInitException();
+        }
+    } catch(exception& e) {
+        cerr << SYS_CALL_ERROR_PROLOG << e.what() << endl;
+        exit(EXIT_FAILURE);
+    }
 
     tl = ThreadsLibrary(quantum_usecs);
     tl.useQuantum();
-    Thread main1 = Thread(MAIN_THREAD_ID);
-    if(sigsetjmp(main1.env, 1) == 1)
+    Thread mainThread = Thread(MAIN_THREAD_ID);
+    if(sigsetjmp(mainThread.env, SAVE_SIGS) != SIGSETJMP_RETURNING_DIRECTLY)
     {
         return SUCCESS;
     }
-    tl.addThread(main1);
+    struct sigaction timeHandler;
+    tl.addThread(mainThread);
     try {
         timeHandler.sa_handler = &catchTimer;
 
@@ -61,16 +72,20 @@ int uthread_spawn(void (*f)(void))
 {
     int tID;
     sigprocmask(SIG_BLOCK, tl.getBlockedSignals(), NULL);
-    try {
-        tID  = tl.getNextID();
-    } catch(const threadsLimitException& e){
-        cerr << LIB_FUNCTION_ERROR_PROLOG <<  e.what() << endl;
+    try
+    {
+        tID = tl.getNextID();
+    } catch (const threadsLimitException &e)
+    {
+        cerr << LIB_FUNCTION_ERROR_PROLOG << e.what() << endl;
         return FAIL;
     }
     tl.addThread(Thread(tID));
     Thread *nct = tl.getThreadAt(tID);
-    if(sigsetjmp(nct->env,1) == 1)
-        return tID;
+    if (sigsetjmp(nct->env, SAVE_SIGS) != SIGSETJMP_RETURNING_DIRECTLY)
+    {
+    return tID;
+    }
     nct->env->__jmpbuf[JB_SP] = translate_address(
             (address_t) nct->stack + STACK_SIZE - sizeof(address_t));
     nct->env->__jmpbuf[JB_PC] = translate_address((address_t) f);
@@ -98,13 +113,13 @@ int uthread_terminate(int tid)
     try {
         tl.getThreadAt(tid);
     } catch(const exception &e) {
-        cerr << LIB_FUNCTION_ERROR_PROLOG <<  e.what() << endl;
+        cerr << LIB_FUNCTION_ERROR_PROLOG << e.what() << endl;
         sigprocmask(SIG_UNBLOCK, tl.getBlockedSignals(), NULL);
         return FAIL;
     }
     if(tid == MAIN_THREAD_ID)
         exit(EXIT_SUCCESS);
-    myQueue* list;
+    MyQueue* list;
     //search for the id in the lists and delete from them if found
 
     if(tl.getRunningThread()->getID() == tid) {
@@ -112,9 +127,9 @@ int uthread_terminate(int tid)
         switchThreads(TERMINATED);
         return SUCCESS;
     }
-    else if((list = &tl.getReadyList())->find(tid) != -1) {}
-    else if((list = &tl.getSleepingList())->find(tid) != -1){}
-    else if((list = &tl.getBlockedList())->find(tid) != -1){}
+    else if((list = &tl.getReadyList())->find(tid) != NON_EXISTING_VALUE) {}
+    else if((list = &tl.getSleepingList())->find(tid) != NON_EXISTING_VALUE){}
+    else if((list = &tl.getBlockedList())->find(tid) != NON_EXISTING_VALUE){}
     list->erase(list->find(tid));
     delete tl.getThreadAt(tid);
     tl.threads[tid] = nullptr;
@@ -149,15 +164,15 @@ int uthread_block(int tid)
         sigprocmask(SIG_UNBLOCK, tl.getBlockedSignals(), NULL);
         return FAIL;
     }
-    myQueue* list;
+    MyQueue* list;
     if(tl.getRunningThread()->getID() == tid) {
         switchThreads(BLOCKED);
         sigprocmask(SIG_UNBLOCK, tl.getBlockedSignals(), NULL);
         return SUCCESS;
     }
-    else if((list = &tl.getReadyList())->find(tid) != -1) {}
-    else if((list = &tl.getSleepingList())->find(tid) != -1){}
-    else if((list = &tl.getBlockedList())->find(tid) != -1){}
+    else if((list = &tl.getReadyList())->find(tid) != NON_EXISTING_VALUE) {}
+    else if((list = &tl.getSleepingList())->find(tid) != NON_EXISTING_VALUE){}
+    else if((list = &tl.getBlockedList())->find(tid) != NON_EXISTING_VALUE){}
     list->erase(list->find(tid));
     tl.getBlockedList().push(tid);
     sigprocmask(SIG_UNBLOCK, tl.getBlockedSignals(), NULL);
@@ -180,8 +195,8 @@ int uthread_resume(int tid)
         cerr << LIB_FUNCTION_ERROR_PROLOG <<  e.what() << endl;
         return FAIL;
     }
-    myQueue* list;
-    if((list = &tl.getBlockedList())->find(tid) != -1) {
+    MyQueue* list;
+    if((list = &tl.getBlockedList())->find(tid) != NON_EXISTING_VALUE) {
         list->erase(list->find(tid));
         tl.getReadyList().push(tid);
     }
@@ -280,17 +295,22 @@ int uthread_get_quantums(int tid)
     return toTell->getQuantamsUsed();
 }
 
-void switchThreads(NewState s = READY) {
+/**
+ * responsible for switching the threads of the program.
+ * it gets the next state of the running thread (default is READY), so it
+ * will know what to do with him.
+ * it makes the thread on the head of the ready threads queue the current
+ * running thread.
+ */
+static void switchThreads(NewState s = READY) {
     tl.useQuantum();
     tl.updateSleeping();
 
     Thread *oct = tl.getRunningThread();
-    int rtnValue = sigsetjmp(oct->env,1);
+    int rtnValue = sigsetjmp(oct->env,SAVE_SIGS);
     if(rtnValue) {
         return;
     }
-
-
     switch(s){
         case READY:
             tl.getReadyList().push(oct->getID());
@@ -311,9 +331,13 @@ void switchThreads(NewState s = READY) {
     }
     tl.setRunningThread(tl.getThreadAt(tl.getReadyList().pop()));
     tl.getRunningThread()->useQuantum();
-    siglongjmp(tl.getRunningThread()->env, 1);
+    siglongjmp(tl.getRunningThread()->env, SIGLONGJMP_RET_VAL);
 }
 
+/**
+ * The signal handler for SIGINT.
+ * means we want to switch threads.
+ */
 void catchTimer(int sig) {
     (void) sig; //avoiding warnning
     try {

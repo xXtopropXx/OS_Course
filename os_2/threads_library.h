@@ -1,6 +1,3 @@
-//
-// Created by ofir on 21/03/16.
-//
 
 #ifndef OS_THREADS_LIBRARY_H
 #define OS_THREADS_LIBRARY_H
@@ -30,36 +27,48 @@
 
 #define MICROSEC_IN_SEC 1000000
 
+#define SAVE_SIGS 1
+#define SIGSETJMP_RETURNING_DIRECTLY 0
+#define SIGLONGJMP_RET_VAL 1
+
 using namespace std;
 extern void catchTimer(int sig);
 class ThreadsLibrary
 {
 public:
-    inline ~ThreadsLibrary();
+    inline ~ThreadsLibrary(); //D-tor
     inline ThreadsLibrary(): quantumDuration(-1){} // Default C-tor
-    inline ThreadsLibrary(int quantum_time);
-    inline int getQuantumTime() const{return this->quantumDuration;}
-    inline myQueue& getReadyList() {return this->ready;}
-    inline myQueue& getSleepingList() {return this->sleeping;}
-    inline myQueue& getBlockedList() {return this->blocked;}
+    inline ThreadsLibrary(int quantum_time); // C-tor
+    /* returns the ready threads list */
+    inline MyQueue& getReadyList() {return this->ready;}
+    /* returns the sleeping threads list */
+    inline MyQueue& getSleepingList() {return this->sleeping;}
+    /* returns the blocked threads list */
+    inline MyQueue& getBlockedList() {return this->blocked;}
+    /* returns the current running thread */
     inline Thread* getRunningThread() const {return this->running;}
+    /* returns the total quantums used so far */
+    inline int getTotalQuantums(){return this->totalQuantumsUsed;}
+    /* return the lib timer */
+    inline struct itimerval* getTimer(){return &timer;}
+    /* return the block signals */
+    inline const sigset_t *getBlockedSignals(){return &blockedSignals;}
+    /* add one to the total quantum counter */
+    inline void useQuantum(){totalQuantumsUsed++;}
+
     void updateSleeping();
     inline void addThread(Thread t);
     inline int getNextID() const;
     inline Thread* getThreadAt(int tid);
-    inline int getTotalQuantums(){return this->totalQuantumsUsed;}
     void setRunningThread(Thread* thread);
-    void useQuantum(){totalQuantumsUsed++;}
-    inline struct itimerval* getTimer(){return &timer;}
-    const sigset_t *getBlockedSignals(){return &blockedSignals;}
     Thread* (threads[MAX_THREAD_NUM]) = {};
 
 private:
     int totalQuantumsUsed;
     int quantumDuration;
-    myQueue ready;
-    myQueue sleeping;
-    myQueue blocked;
+    MyQueue ready;
+    MyQueue sleeping;
+    MyQueue blocked;
     Thread* running;
 
     struct itimerval timer;
@@ -78,8 +87,8 @@ inline int ThreadsLibrary::getNextID() const {
 }
 
 /**
- * gets thread to add to the threads list, appends it to the ready threads
- * queue.
+ * gets thread to add to the threads list,
+ * appends it to the ready threads queue.
  */
 inline void ThreadsLibrary::addThread(Thread t) {
     threads[t.getID()] = new Thread(t);
@@ -96,8 +105,7 @@ inline void ThreadsLibrary::addThread(Thread t) {
 /**
  * Gets the Thread with the respective id.
  */
-inline Thread* ThreadsLibrary::getThreadAt(int tid)
-{
+inline Thread* ThreadsLibrary::getThreadAt(int tid) {
     if (tid < MIN_ID || tid >= MAX_THREAD_NUM)
         throw out_of_range("Input is out of bound");
     else if(threads[tid] == nullptr) {
@@ -107,15 +115,20 @@ inline Thread* ThreadsLibrary::getThreadAt(int tid)
         return threads[tid];
 }
 
-
+/**
+ * change the current running thread to be the given thread
+ */
 void ThreadsLibrary::setRunningThread(Thread* thread) {
     running = thread;
 }
 
-
-
+/**
+ * take care of all the sleeping threads.
+ * decrease the number of quantums till wake up,
+ * and check if there is threads need to be awaken.
+ */
 void ThreadsLibrary::updateSleeping() {
-    myQueue toErase;
+    MyQueue toErase;
     for(auto it = sleeping.begin(); it != sleeping.end(); it++) {
         Thread* t = getThreadAt(*it);
         t->reduceQuantumsTillWakeUp();
@@ -130,6 +143,9 @@ void ThreadsLibrary::updateSleeping() {
     }
 }
 
+/**
+ * the C-tor
+ */
 inline ThreadsLibrary::ThreadsLibrary(int quantum_time) {
     quantumDuration = quantum_time;
     timer.it_value.tv_sec = quantum_time / MICROSEC_IN_SEC;
@@ -141,6 +157,9 @@ inline ThreadsLibrary::ThreadsLibrary(int quantum_time) {
     sigaddset(&blockedSignals, SIGVTALRM);
 }
 
+/**
+ * D-tor
+ */
 inline ThreadsLibrary::~ThreadsLibrary() {
     for(int i = 0; i < MAX_THREAD_NUM; i++)
         if(threads[i] != nullptr)
