@@ -54,7 +54,7 @@ int main(void)
 {
 	try
 	{
-		uthread_init(1000000);
+		uthread_init(4000);
 		int tid = uthread_get_tid();
 		int i = 1;
 		std::cout << "Thread:m Number:(0) " << tid << std::endl;
